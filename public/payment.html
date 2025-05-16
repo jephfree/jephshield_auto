@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Subscribe</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 2rem auto; }
+    label, input, button { display: block; width: 100%; margin-bottom: .75rem; }
+    button { padding: .5rem; background: #0066FF; color: #fff; border: none; cursor: pointer; }
+    button:disabled { background: #999; }
+  </style>
+</head>
+<body>
+  <h2>Subscribe to VPN Access</h2>
+  <form id="paymentForm">
+    <label for="email">Email:</label>
+    <input type="email" id="email" required />
+
+    <label for="amount">Amount (₦):</label>
+    <input type="number" id="amount" value="1000" required />
+
+    <button id="payBtn" type="submit">Pay Now</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('paymentForm');
+    const payBtn = document.getElementById('payBtn');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      payBtn.disabled = true;
+      payBtn.textContent = 'Processing…';
+
+      const email  = document.getElementById('email').value;
+      const amount = Number(document.getElementById('amount').value);
+
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, amount })
+        });
+        const data = await res.json();
+
+        if (data.authorization_url) {
+          // Redirect user to Paystack checkout
+          window.location.href = data.authorization_url;
+        } else {
+          throw new Error(data.message || 'Failed to initialize payment');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        payBtn.disabled = false;
+        payBtn.textContent = 'Pay Now';
+      }
+    });
+  </script>
+</body>
+</html>

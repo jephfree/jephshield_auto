@@ -1,0 +1,6 @@
+[
+  { "id": 1, "country": "USA", "location": "New York" },
+  { "id": 2, "country": "Japan", "location": "Tokyo" },
+  { "id": 3, "country": "UK", "location": "London" },
+  { "id": 4, "country": "Singapore", "location": "Singapore" }
+]

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JephShield VPN Servers</title>
+</head>
+<body>
+  <h1>JephShield VPN Servers</h1>
+
+  <table border="1">
+    <thead>
+      <tr>
+        <th>Country</th>
+        <th>Location</th>
+        <th>IP/Hostname</th>
+        <th>Port</th>
+        <th>Username</th>
+        <th>Password</th>
+      </tr>
+    </thead>
+    <tbody id="vpnServersList">
+      <!-- VPN Servers will be added here -->
+    </tbody>
+  </table>
+
+  <script>
+    async function fetchVpnServers() {
+      const response = await fetch('/api/vpn-servers');
+      const vpnServers = await response.json();
+      
+      const listContainer = document.getElementById('vpnServersList');
+      listContainer.innerHTML = ''; // Clear the list before adding new entries
+
+      vpnServers.forEach(server => {
+        const row = document.createElement('tr');
+
+        const countryCell = document.createElement('td');
+        countryCell.textContent = server.country;
+        row.appendChild(countryCell);
+
+        const locationCell = document.createElement('td');
+        locationCell.textContent = server.location;
+        row.appendChild(locationCell);
+
+        const ipCell = document.createElement('td');
+        ipCell.textContent = server.ip || 'N/A'; // Display 'N/A' if IP is missing
+        row.appendChild(ipCell);
+
+        const portCell = document.createElement('td');
+        portCell.textContent = server.port || 'N/A'; // Display 'N/A' if port is missing
+        row.appendChild(portCell);
+
+        const usernameCell = document.createElement('td');
+        usernameCell.textContent = server.username || 'N/A'; // Display 'N/A' if username is missing
+        row.appendChild(usernameCell);
+
+        const passwordCell = document.createElement('td');
+        passwordCell.textContent = server.password || 'N/A'; // Display 'N/A' if password is missing
+        row.appendChild(passwordCell);
+
+        listContainer.appendChild(row);
+      });
+    }
+
+    // Fetch VPN servers on page load
+    window.onload = fetchVpnServers;
+  </script>
+
+</body>
+</html>

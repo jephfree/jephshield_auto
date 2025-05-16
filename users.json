@@ -1,0 +1,10 @@
+[
+  {
+    "username": "admin",
+    "password": "$2b$10$ICIli0ui.WJwjgpJqSmwUOCmHDzRCumfTJLdcF5jjW1OpGoZiD75i"
+  },
+  {
+    "email": "user@example.com",
+    "subscribed": true
+  }
+]

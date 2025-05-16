@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JephShield Admin Panel</title>
+</head>
+<body>
+  <h1>Add VPN Server</h1>
+  <form id="serverForm">
+    <label>Country:</label><br>
+    <input type="text" id="country" required><br><br>
+
+    <label>Location:</label><br>
+    <input type="text" id="location" required><br><br>
+
+    <label>IP/Hostname:</label><br>
+    <input type="text" id="ip" required><br><br>
+
+    <label>Port:</label><br>
+    <input type="number" id="port" required><br><br>
+
+    <label>Username:</label><br>
+    <input type="text" id="username" required><br><br>
+
+    <label>Password:</label><br>
+    <input type="password" id="password" required><br><br>
+
+    <button type="submit">Add Server</button>
+  </form>
+
+  <p id="message"></p>
+
+  <script>
+    document.getElementById('serverForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const country = document.getElementById('country').value;
+      const location = document.getElementById('location').value;
+      const ip = document.getElementById('ip').value;
+      const port = document.getElementById('port').value;
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      const response = await fetch('/api/vpn-servers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ country, location, ip, port, username, password })
+      });
+
+      const result = await response.json();
+      document.getElementById('message').innerText = result.message || 'Server added!';
+    });
+  </script>
+</body>
+</html>
