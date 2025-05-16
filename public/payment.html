@@ -1,23 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Subscribe</title>
+  <meta charset="UTF-8" />
+  <title>Subscribe - Jephshield VPN</title>
   <style>
-    body { font-family: sans-serif; max-width: 400px; margin: 2rem auto; }
-    label, input, button { display: block; width: 100%; margin-bottom: .75rem; }
-    button { padding: .5rem; background: #0066FF; color: #fff; border: none; cursor: pointer; }
-    button:disabled { background: #999; }
+    body {
+      font-family: sans-serif;
+      max-width: 400px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    label, input, button {
+      display: block;
+      width: 100%;
+      margin-bottom: 0.75rem;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.5rem;
+      background: #0066FF;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
   <h2>Subscribe to VPN Access</h2>
-  <form id="paymentForm">
+  <form id="paymentForm" novalidate>
     <label for="email">Email:</label>
-    <input type="email" id="email" required />
+    <input type="email" id="email" name="email" required placeholder="you@example.com" />
 
     <label for="amount">Amount (₦):</label>
-    <input type="number" id="amount" value="1000" required />
+    <input type="number" id="amount" name="amount" min="100" value="1000" required />
 
     <button id="payBtn" type="submit">Pay Now</button>
   </form>
@@ -31,8 +51,15 @@
       payBtn.disabled = true;
       payBtn.textContent = 'Processing…';
 
-      const email  = document.getElementById('email').value;
+      const email = document.getElementById('email').value.trim();
       const amount = Number(document.getElementById('amount').value);
+
+      if (!email || amount < 100) {
+        alert('Please enter a valid email and amount (minimum ₦100)');
+        payBtn.disabled = false;
+        payBtn.textContent = 'Pay Now';
+        return;
+      }
 
       try {
         const res = await fetch('/api/subscribe', {
@@ -40,10 +67,10 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, amount })
         });
+
         const data = await res.json();
 
-        if (data.authorization_url) {
-          // Redirect user to Paystack checkout
+        if (res.ok && data.authorization_url) {
           window.location.href = data.authorization_url;
         } else {
           throw new Error(data.message || 'Failed to initialize payment');
