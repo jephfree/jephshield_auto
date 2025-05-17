@@ -9,7 +9,7 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Route: Root
 app.get('/', (req, res) => {
@@ -32,7 +32,7 @@ app.post('/api/subscribe', async (req, res) => {
   try {
     const response = await axios.post('https://api.paystack.co/transaction/initialize', {
       email: email,
-      amount: amount * 100  // Paystack expects amount in kobo (so multiply by 100)
+      amount: amount * 100
     }, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -41,20 +41,27 @@ app.post('/api/subscribe', async (req, res) => {
     });
 
     const { authorization_url } = response.data.data;
+    console.log(`Initialized payment for ${email}, redirecting to: ${authorization_url}`);
 
     return res.json({ authorization_url });
 
   } catch (error) {
-    console.error('Paystack initialize payment error:', error.response?.data || error.message);
+    console.error('Payment init failed:', error.response?.data || error.message);
     return res.status(500).json({ message: 'Payment initialization failed' });
   }
 });
 
-// Route: Handle Paystack payment verification webhook (optional but recommended)
+// Route: Handle Paystack webhook
 app.post('/verify-payment', (req, res) => {
-  // You will handle webhook events here
-  // For now, just acknowledge receipt
-  res.status(200).send('Webhook received');
+  // TODO: Add signature verification here for security (optional)
+  console.log('Webhook received:', req.body);
+
+  res.status(200).send('Webhook acknowledged');
+});
+
+// Optional: Success route (for redirection after payment)
+app.get('/success', (req, res) => {
+  res.send('Payment successful. Thank you for subscribing to Jephshield VPN.');
 });
 
 // Start the server
