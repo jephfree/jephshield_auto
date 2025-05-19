@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const axios = require('axios');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
 
 dotenv.config();
 
@@ -11,17 +12,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Route: Redirect old /payment.html to /subscribe
-app.get('/payment.html', (req, res) => {
-  res.redirect('/subscribe');
-});
+// 🔐 Raw body parser ONLY for webhook verification
+app.use('/verify-payment', express.raw({ type: 'application/json' }));
 
 // Route: Root
 app.get('/', (req, res) => {
   res.send('Jephshield Backend is running!');
 });
 
-// Route: Serve payment page at /subscribe
+// Route: Serve payment.html using /subscribe
 app.get('/subscribe', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
@@ -37,7 +36,8 @@ app.post('/api/subscribe', async (req, res) => {
   try {
     const response = await axios.post('https://api.paystack.co/transaction/initialize', {
       email: email,
-      amount: amount * 100
+      amount: amount * 100,
+      callback_url: 'https://jephshield-auto.onrender.com/success'
     }, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -47,6 +47,7 @@ app.post('/api/subscribe', async (req, res) => {
 
     const { authorization_url } = response.data.data;
     console.log(`Initialized payment for ${email}, redirecting to: ${authorization_url}`);
+
     return res.json({ authorization_url });
 
   } catch (error) {
@@ -55,18 +56,41 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
-// Route: Handle Paystack webhook
+// ✅ Route: Handle Paystack webhook securely
 app.post('/verify-payment', (req, res) => {
-  console.log('Webhook received:', req.body);
-  res.status(200).send('Webhook acknowledged');
+  const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
+                     .update(req.body)
+                     .digest('hex');
+
+  const signature = req.headers['x-paystack-signature'];
+
+  if (hash !== signature) {
+    console.warn('⚠️ Invalid Paystack signature!');
+    return res.status(401).send('Invalid signature');
+  }
+
+  const event = JSON.parse(req.body);
+
+  if (event.event === 'charge.success') {
+    const customerEmail = event.data.customer.email;
+    const amountPaid = event.data.amount / 100;
+
+    console.log(`✅ Payment verified for ${customerEmail}, amount: ₦${amountPaid}`);
+
+    // TODO: Save this user as "premium" in your system (e.g., JSON file or DB)
+
+    return res.status(200).send('Payment processed');
+  }
+
+  res.status(200).send('Unhandled event');
 });
 
-// Route: Payment success
+// Route: Success page after payment
 app.get('/success', (req, res) => {
   res.send('Payment successful. Thank you for subscribing to Jephshield VPN.');
 });
 
-// Start server
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Jephshield backend is running on port ${PORT}`);
