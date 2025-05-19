@@ -3,23 +3,44 @@ const path = require('path');
 const axios = require('axios');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
+const fs = require('fs');
 
 dotenv.config();
 
 const app = express();
 
+const premiumUsersFile = path.join(__dirname, 'premium-users.json');
+
+// Helper functions to manage premium users
+function getPremiumUsers() {
+  try {
+    const data = fs.readFileSync(premiumUsersFile, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+function addPremiumUser(email) {
+  const users = getPremiumUsers();
+  if (!users.includes(email)) {
+    users.push(email);
+    fs.writeFileSync(premiumUsersFile, JSON.stringify(users, null, 2));
+  }
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware: Capture raw body + parse JSON
+// Webhook route with raw body and signature verification
 app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res) => {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   const signature = req.headers['x-paystack-signature'];
 
   const hash = crypto
     .createHmac('sha512', secret)
-    .update(req.body) // Buffer
+    .update(req.body)
     .digest('hex');
 
   if (hash !== signature) {
@@ -27,7 +48,6 @@ app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res
     return res.status(401).send('Invalid signature');
   }
 
-  // ✅ Parse the raw body into JSON
   const event = JSON.parse(req.body.toString());
 
   if (event.event === 'charge.success') {
@@ -36,7 +56,8 @@ app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res
 
     console.log(`✅ Payment verified for ${customerEmail}, amount: ₦${amountPaid}`);
 
-    // TODO: Mark user as premium here
+    // Add user to premium list
+    addPremiumUser(customerEmail);
 
     return res.status(200).send('Payment processed');
   }
@@ -44,17 +65,17 @@ app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res
   res.status(200).send('Unhandled event');
 });
 
-// Route: Root
+// Root route
 app.get('/', (req, res) => {
   res.send('Jephshield Backend is running!');
 });
 
-// Route: Serve payment.html using /subscribe
+// Serve subscription page
 app.get('/subscribe', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
 
-// Route: Initialize payment via Paystack
+// Initialize payment route
 app.post('/api/subscribe', async (req, res) => {
   const { email, amount } = req.body;
 
@@ -64,7 +85,7 @@ app.post('/api/subscribe', async (req, res) => {
 
   try {
     const response = await axios.post('https://api.paystack.co/transaction/initialize', {
-      email: email,
+      email,
       amount: amount * 100,
       callback_url: 'https://jephshield-auto.onrender.com/success'
     }, {
@@ -85,12 +106,30 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
-// Route: Success page after payment
+// Friendly success page
 app.get('/success', (req, res) => {
-  res.send('Payment successful. Thank you for subscribing to Jephshield VPN.');
+  res.send(`
+    <h1>Payment Successful 🎉</h1>
+    <p>Thank you for subscribing to Jephshield VPN.</p>
+    <p>Your premium access is now activated.</p>
+    <a href="/subscribe">Back to subscription page</a>
+  `);
 });
 
-// Start the server
+// Route: Check premium status
+app.get('/api/is-premium', (req, res) => {
+  const email = req.query.email;
+  if (!email) {
+    return res.status(400).json({ message: 'Missing email' });
+  }
+
+  const users = getPremiumUsers();
+  const isPremium = users.includes(email);
+
+  res.json({ email, isPremium });
+});
+
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Jephshield backend is running on port ${PORT}`);
