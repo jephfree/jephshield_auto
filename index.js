@@ -11,12 +11,17 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Route: Redirect old /payment.html to /subscribe
+app.get('/payment.html', (req, res) => {
+  res.redirect('/subscribe');
+});
+
 // Route: Root
 app.get('/', (req, res) => {
   res.send('Jephshield Backend is running!');
 });
 
-// Route: Serve payment.html
+// Route: Serve payment page at /subscribe
 app.get('/subscribe', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
@@ -42,7 +47,6 @@ app.post('/api/subscribe', async (req, res) => {
 
     const { authorization_url } = response.data.data;
     console.log(`Initialized payment for ${email}, redirecting to: ${authorization_url}`);
-
     return res.json({ authorization_url });
 
   } catch (error) {
@@ -53,18 +57,16 @@ app.post('/api/subscribe', async (req, res) => {
 
 // Route: Handle Paystack webhook
 app.post('/verify-payment', (req, res) => {
-  // TODO: Add signature verification here for security (optional)
   console.log('Webhook received:', req.body);
-
   res.status(200).send('Webhook acknowledged');
 });
 
-// Optional: Success route (for redirection after payment)
+// Route: Payment success
 app.get('/success', (req, res) => {
   res.send('Payment successful. Thank you for subscribing to Jephshield VPN.');
 });
 
-// Start the server
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Jephshield backend is running on port ${PORT}`);
