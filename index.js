@@ -12,8 +12,37 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 🔐 Raw body parser ONLY for webhook verification
-app.use('/verify-payment', express.raw({ type: 'application/json' }));
+// Middleware: Capture raw body + parse JSON
+app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res) => {
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const signature = req.headers['x-paystack-signature'];
+
+  const hash = crypto
+    .createHmac('sha512', secret)
+    .update(req.body) // Buffer
+    .digest('hex');
+
+  if (hash !== signature) {
+    console.warn('⚠️ Invalid Paystack signature!');
+    return res.status(401).send('Invalid signature');
+  }
+
+  // ✅ Parse the raw body into JSON
+  const event = JSON.parse(req.body.toString());
+
+  if (event.event === 'charge.success') {
+    const customerEmail = event.data.customer.email;
+    const amountPaid = event.data.amount / 100;
+
+    console.log(`✅ Payment verified for ${customerEmail}, amount: ₦${amountPaid}`);
+
+    // TODO: Mark user as premium here
+
+    return res.status(200).send('Payment processed');
+  }
+
+  res.status(200).send('Unhandled event');
+});
 
 // Route: Root
 app.get('/', (req, res) => {
@@ -54,35 +83,6 @@ app.post('/api/subscribe', async (req, res) => {
     console.error('Payment init failed:', error.response?.data || error.message);
     return res.status(500).json({ message: 'Payment initialization failed' });
   }
-});
-
-// ✅ Route: Handle Paystack webhook securely
-app.post('/verify-payment', (req, res) => {
-  const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
-                     .update(req.body)
-                     .digest('hex');
-
-  const signature = req.headers['x-paystack-signature'];
-
-  if (hash !== signature) {
-    console.warn('⚠️ Invalid Paystack signature!');
-    return res.status(401).send('Invalid signature');
-  }
-
-  const event = JSON.parse(req.body);
-
-  if (event.event === 'charge.success') {
-    const customerEmail = event.data.customer.email;
-    const amountPaid = event.data.amount / 100;
-
-    console.log(`✅ Payment verified for ${customerEmail}, amount: ₦${amountPaid}`);
-
-    // TODO: Save this user as "premium" in your system (e.g., JSON file or DB)
-
-    return res.status(200).send('Payment processed');
-  }
-
-  res.status(200).send('Unhandled event');
 });
 
 // Route: Success page after payment
