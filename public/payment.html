@@ -26,8 +26,13 @@
       font-size: 1rem;
     }
     .price {
-      margin: 1rem 0;
+      margin: 1rem 0 0.5rem;
       font-weight: bold;
+    }
+    .note {
+      font-size: 0.85rem;
+      color: #555;
+      margin-bottom: 1rem;
     }
   </style>
 </head>
@@ -44,6 +49,10 @@
       </select>
 
       <div class="price" id="priceDisplay">Loading price...</div>
+      <div class="note">
+        You will be charged in Nigerian Naira (₦). Your bank or card provider will automatically convert the amount to your local currency.
+      </div>
+
       <button type="submit">Subscribe Now</button>
     </form>
   </div>
