@@ -19,7 +19,7 @@
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    input, select, button {
+    input, button {
       margin: 10px 0;
       padding: 10px;
       width: 100%;
@@ -36,56 +36,42 @@
   <form id="subscribeForm">
     <input type="email" id="email" placeholder="Enter your email" required />
 
-    <select id="currency">
-      <option value="USD">USD - US Dollar</option>
-      <option value="NGN">NGN - Nigerian Naira</option>
-      <option value="EUR">EUR - Euro</option>
-      <option value="GBP">GBP - British Pound</option>
-      <option value="CAD">CAD - Canadian Dollar</option>
-      <option value="ZAR">ZAR - South African Rand</option>
-    </select>
-
-    <div class="price-display" id="priceDisplay">Price: $2.99</div>
+    <div class="price-display" id="priceDisplay">Price: ₦...</div>
 
     <button type="submit">Pay Now</button>
   </form>
 
   <script>
     const priceUSD = 2.99;
-    const currencySelect = document.getElementById('currency');
-    const priceDisplay = document.getElementById('priceDisplay');
+    const NGN_RATE_API = 'https://open.er-api.com/v6/latest/USD';
+    let ngnAmount = null;
 
-    const exchangeRates = {};
-
-    async function fetchRates() {
+    async function fetchNGNRate() {
       try {
-        const res = await fetch('https://open.er-api.com/v6/latest/USD');
+        const res = await fetch(NGN_RATE_API);
         const data = await res.json();
-        Object.assign(exchangeRates, data.rates);
-        updatePriceDisplay();
+        const rate = data.rates.NGN;
+        ngnAmount = Math.round(priceUSD * rate);
+        document.getElementById('priceDisplay').textContent = `Price: ₦${ngnAmount}`;
       } catch (err) {
-        console.error("Failed to fetch exchange rates:", err);
+        console.error('Failed to fetch exchange rate:', err);
+        document.getElementById('priceDisplay').textContent = 'Failed to load price.';
       }
     }
-
-    function updatePriceDisplay() {
-      const selected = currencySelect.value;
-      const rate = exchangeRates[selected] || 1;
-      const converted = (priceUSD * rate).toFixed(2);
-      priceDisplay.textContent = `Price: ${selected} ${converted}`;
-    }
-
-    currencySelect.addEventListener('change', updatePriceDisplay);
 
     document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
-      const currency = currencySelect.value;
+
+      if (!ngnAmount) {
+        alert('Failed to load NGN price. Please refresh.');
+        return;
+      }
 
       const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, currency })
+        body: JSON.stringify({ email, amount: ngnAmount })
       });
 
       const data = await res.json();
@@ -96,7 +82,7 @@
       }
     });
 
-    fetchRates();
+    fetchNGNRate();
   </script>
 </body>
 </html>
