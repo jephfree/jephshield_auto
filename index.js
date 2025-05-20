@@ -75,18 +75,26 @@ app.get('/subscribe', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
 
-// Initialize payment route
+// Initialize payment route (with real-time USD to NGN conversion)
 app.post('/api/subscribe', async (req, res) => {
-  const { email, amount } = req.body;
+  const { email } = req.body;
 
-  if (!email || !amount) {
-    return res.status(400).json({ message: 'Missing email or amount' });
+  if (!email) {
+    return res.status(400).json({ message: 'Missing email' });
   }
 
   try {
+    // Get live exchange rate for USD to NGN
+    const exchangeRes = await axios.get('https://api.exchangerate.host/latest?base=USD&symbols=NGN');
+    const rate = exchangeRes.data.rates.NGN;
+
+    const usdPrice = 7;
+    const nairaAmount = Math.round(usdPrice * rate); // round for safe payment
+
+    // Initialize payment on Paystack
     const response = await axios.post('https://api.paystack.co/transaction/initialize', {
       email,
-      amount: amount * 100,
+      amount: nairaAmount * 100, // Paystack expects kobo
       callback_url: 'https://jephshield-auto.onrender.com/success'
     }, {
       headers: {
@@ -96,12 +104,12 @@ app.post('/api/subscribe', async (req, res) => {
     });
 
     const { authorization_url } = response.data.data;
-    console.log(`Initialized payment for ${email}, redirecting to: ${authorization_url}`);
+    console.log(`💵 Initialized payment for ${email}, ₦${nairaAmount} (${rate} NGN/USD)`);
 
-    return res.json({ authorization_url });
+    return res.json({ authorization_url, amount: nairaAmount });
 
   } catch (error) {
-    console.error('Payment init failed:', error.response?.data || error.message);
+    console.error('❌ Payment init failed:', error.response?.data || error.message);
     return res.status(500).json({ message: 'Payment initialization failed' });
   }
 });
