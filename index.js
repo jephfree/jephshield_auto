@@ -8,19 +8,19 @@ const fs = require('fs');
 dotenv.config();
 
 const app = express();
-
 const premiumUsersFile = path.join(__dirname, 'premium-users.json');
+const USD_PRICE = 2.99; // Monthly premium cost in USD
 
-// Helper functions to manage premium users
+// Load premium users
 function getPremiumUsers() {
   try {
-    const data = fs.readFileSync(premiumUsersFile, 'utf8');
-    return JSON.parse(data);
+    return JSON.parse(fs.readFileSync(premiumUsersFile, 'utf8'));
   } catch {
     return [];
   }
 }
 
+// Save new premium user
 function addPremiumUser(email) {
   const users = getPremiumUsers();
   if (!users.includes(email)) {
@@ -33,13 +33,62 @@ function addPremiumUser(email) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Webhook route with raw body and signature verification
-app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res) => {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
-  const signature = req.headers['x-paystack-signature'];
+// Routes
+app.get('/', (req, res) => {
+  res.send('Jephshield backend is running!');
+});
 
+app.get('/subscribe', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'payment.html'));
+});
+
+app.get('/api/is-premium', (req, res) => {
+  const email = req.query.email;
+  if (!email) return res.status(400).json({ message: 'Missing email' });
+
+  const isPremium = getPremiumUsers().includes(email);
+  res.json({ email, isPremium });
+});
+
+// Initialize payment
+app.post('/api/subscribe', async (req, res) => {
+  const { email, amount } = req.body;
+  if (!email || !amount || amount < 100) {
+    return res.status(400).json({ message: 'Invalid email or amount' });
+  }
+
+  try {
+    const response = await axios.post(
+      'https://api.paystack.co/transaction/initialize',
+      {
+        email,
+        amount: Math.round(amount * 100),
+        currency: 'NGN',
+        callback_url: 'https://jephshield-auto.onrender.com/success'
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const { authorization_url } = response.data.data;
+    console.log(`🧾 Initialized NGN payment for ${email}: ${authorization_url}`);
+    res.json({ authorization_url });
+
+  } catch (err) {
+    console.error('❌ Payment init failed:', err.response?.data || err.message);
+    res.status(500).json({ message: 'Payment initialization failed' });
+  }
+});
+
+// Paystack webhook
+app.post('/verify-payment', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['x-paystack-signature'];
   const hash = crypto
-    .createHmac('sha512', secret)
+    .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
     .update(req.body)
     .digest('hex');
 
@@ -49,92 +98,41 @@ app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res
   }
 
   const event = JSON.parse(req.body.toString());
-
   if (event.event === 'charge.success') {
-    const customerEmail = event.data.customer.email;
+    const email = event.data.customer.email;
     const amountPaid = event.data.amount / 100;
+    const currency = event.data.currency;
 
-    console.log(`✅ Payment verified for ${customerEmail}, amount: ₦${amountPaid}`);
+    try {
+      const usdRate = await axios.get('https://open.er-api.com/v6/latest/USD');
+      const conversionRate = usdRate.data.rates[currency] || null;
 
-    // Add user to premium list
-    addPremiumUser(customerEmail);
-
-    return res.status(200).send('Payment processed');
-  }
-
-  res.status(200).send('Unhandled event');
-});
-
-// Root route
-app.get('/', (req, res) => {
-  res.send('Jephshield Backend is running!');
-});
-
-// Serve subscription page
-app.get('/subscribe', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'payment.html'));
-});
-
-// Initialize payment route (with real-time USD to NGN conversion)
-app.post('/api/subscribe', async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ message: 'Missing email' });
-  }
-
-  try {
-    // Get live exchange rate for USD to NGN
-    const exchangeRes = await axios.get('https://api.exchangerate.host/latest?base=USD&symbols=NGN');
-    const rate = exchangeRes.data.rates.NGN;
-
-    const usdPrice = 7;
-    const nairaAmount = Math.round(usdPrice * rate); // round for safe payment
-
-    // Initialize payment on Paystack
-    const response = await axios.post('https://api.paystack.co/transaction/initialize', {
-      email,
-      amount: nairaAmount * 100, // Paystack expects kobo
-      callback_url: 'https://jephshield-auto.onrender.com/success'
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-        'Content-Type': 'application/json'
+      if (conversionRate) {
+        const paidInUSD = amountPaid / conversionRate;
+        if (paidInUSD >= USD_PRICE) {
+          addPremiumUser(email);
+          console.log(`✅ ${email} marked as premium (paid ${paidInUSD.toFixed(2)} USD)`);
+        } else {
+          console.warn(`⚠️ ${email} paid less than required: $${paidInUSD.toFixed(2)} USD`);
+        }
+      } else {
+        console.error(`❌ Currency ${currency} not found in exchange rates`);
       }
-    });
-
-    const { authorization_url } = response.data.data;
-    console.log(`💵 Initialized payment for ${email}, ₦${nairaAmount} (${rate} NGN/USD)`);
-
-    return res.json({ authorization_url, amount: nairaAmount });
-
-  } catch (error) {
-    console.error('❌ Payment init failed:', error.response?.data || error.message);
-    return res.status(500).json({ message: 'Payment initialization failed' });
+    } catch (err) {
+      console.error('❌ Failed to fetch exchange rates:', err.message);
+    }
   }
+
+  res.sendStatus(200);
 });
 
-// Friendly success page
+// Success page
 app.get('/success', (req, res) => {
   res.send(`
     <h1>Payment Successful 🎉</h1>
     <p>Thank you for subscribing to Jephshield VPN.</p>
-    <p>Your premium access is now activated.</p>
     <a href="/subscribe">Back to subscription page</a>
   `);
-});
-
-// Route: Check premium status
-app.get('/api/is-premium', (req, res) => {
-  const email = req.query.email;
-  if (!email) {
-    return res.status(400).json({ message: 'Missing email' });
-  }
-
-  const users = getPremiumUsers();
-  const isPremium = users.includes(email);
-
-  res.json({ email, isPremium });
 });
 
 // Start server
