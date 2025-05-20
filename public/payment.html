@@ -3,100 +3,93 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Subscribe to JephShield VPN</title>
+  <title>JephShield VPN Subscription</title>
   <style>
     body {
-      font-family: sans-serif;
-      background-color: #f2f2f2;
-      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 2rem;
       text-align: center;
     }
-    form {
+    .container {
       background: white;
-      padding: 30px;
+      padding: 2rem;
       max-width: 400px;
       margin: auto;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
-    input, select, button {
-      margin: 10px 0;
-      padding: 10px;
+    input, button {
+      padding: 0.8rem;
       width: 100%;
+      margin-top: 1rem;
       font-size: 1rem;
     }
-    .price-display {
-      margin-top: 10px;
+    .price {
+      margin: 1rem 0;
       font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>Subscribe to JephShield VPN</h1>
-  <form id="subscribeForm">
-    <input type="email" id="email" placeholder="Enter your email" required />
-
-    <select id="currency">
-      <option value="USD">USD - US Dollar</option>
-      <option value="NGN">NGN - Nigerian Naira</option>
-      <option value="GHS">GHS - Ghanaian Cedi</option>
-      <option value="ZAR">ZAR - South African Rand</option>
-      <option value="KES">KES - Kenyan Shilling</option>
-    </select>
-
-    <div class="price-display" id="priceDisplay">Price: $5.00</div>
-
-    <button type="submit">Pay Now</button>
-  </form>
+  <div class="container">
+    <h2>Subscribe to JephShield VPN</h2>
+    <form id="paymentForm">
+      <input type="email" id="email" placeholder="Enter your email" required />
+      <div class="price" id="priceDisplay">Loading price...</div>
+      <button type="submit">Subscribe Now</button>
+    </form>
+  </div>
 
   <script>
-    const priceUSD = 5.00;
-    const currencySelect = document.getElementById('currency');
-    const priceDisplay = document.getElementById('priceDisplay');
+    const usdPrices = {
+      NG: 2.99,
+      GH: 3.5,
+      US: 5,
+      GB: 5,
+      DEFAULT: 5
+    };
 
-    const exchangeRates = {};
-
-    async function fetchRates() {
+    async function detectCountry() {
       try {
-        const res = await fetch('https://open.er-api.com/v6/latest/USD');
+        const res = await fetch('https://ipapi.co/json/');
         const data = await res.json();
-        Object.assign(exchangeRates, data.rates);
-        updatePriceDisplay();
-      } catch (err) {
-        console.error("Failed to fetch exchange rates:", err);
+        return data.country_code || 'DEFAULT';
+      } catch {
+        return 'DEFAULT';
       }
     }
 
-    function updatePriceDisplay() {
-      const selected = currencySelect.value;
-      const rate = exchangeRates[selected] || 1;
-      const converted = (priceUSD * rate).toFixed(2);
-      priceDisplay.textContent = `Price: ${selected} ${converted}`;
+    async function showPrice() {
+      const country = await detectCountry();
+      const price = usdPrices[country] || usdPrices.DEFAULT;
+      const display = document.getElementById('priceDisplay');
+      display.textContent = `Price: $${price.toFixed(2)} USD (charged in NGN)`;
     }
 
-    currencySelect.addEventListener('change', updatePriceDisplay);
+    showPrice();
 
-    document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
+    const form = document.getElementById('paymentForm');
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
-      const currency = currencySelect.value;
 
       const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, currency })
+        body: JSON.stringify({ email })
       });
 
       const data = await res.json();
       if (data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
-        alert("Error: " + (data.message || 'Payment failed'));
+        alert('Payment initiation failed. Please try again.');
       }
     });
-
-    fetchRates();
   </script>
 </body>
+</html>
+
 </html>
 
