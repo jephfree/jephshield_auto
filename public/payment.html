@@ -19,7 +19,7 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
-    input, button {
+    input, select, button {
       padding: 0.8rem;
       width: 100%;
       margin-top: 1rem;
@@ -36,6 +36,13 @@
     <h2>Subscribe to JephShield VPN</h2>
     <form id="paymentForm">
       <input type="email" id="email" placeholder="Enter your email" required />
+      
+      <select id="plan" required>
+        <option value="monthly" selected>Monthly</option>
+        <option value="3months">3 Months</option>
+        <option value="yearly">Yearly</option>
+      </select>
+
       <div class="price" id="priceDisplay">Loading price...</div>
       <button type="submit">Subscribe Now</button>
     </form>
@@ -50,34 +57,47 @@
       DEFAULT: 5
     };
 
+    let baseUSD = 5;
+    let countryCode = 'DEFAULT';
+
     async function detectCountry() {
       try {
         const res = await fetch('https://ipapi.co/json/');
         const data = await res.json();
-        return data.country_code || 'DEFAULT';
+        countryCode = data.country_code || 'DEFAULT';
+        baseUSD = usdPrices[countryCode] || usdPrices.DEFAULT;
+        updatePrice();
       } catch {
-        return 'DEFAULT';
+        baseUSD = usdPrices.DEFAULT;
+        updatePrice();
       }
     }
 
-    async function showPrice() {
-      const country = await detectCountry();
-      const price = usdPrices[country] || usdPrices.DEFAULT;
+    function updatePrice() {
+      const plan = document.getElementById('plan').value;
+      let multiplier = 1;
+      if (plan === '3months') multiplier = 3;
+      if (plan === 'yearly') multiplier = 12;
+
+      const totalUSD = baseUSD * multiplier;
       const display = document.getElementById('priceDisplay');
-      display.textContent = `Price: $${price.toFixed(2)} USD (charged in NGN)`;
+      display.textContent = `Price: $${totalUSD.toFixed(2)} USD (charged in NGN)`;
     }
 
-    showPrice();
+    document.getElementById('plan').addEventListener('change', updatePrice);
+
+    detectCountry();
 
     const form = document.getElementById('paymentForm');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
+      const plan = document.getElementById('plan').value;
 
       const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, plan })
       });
 
       const data = await res.json();
@@ -91,5 +111,4 @@
 </body>
 </html>
 
-</html>
 

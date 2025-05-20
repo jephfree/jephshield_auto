@@ -9,13 +9,25 @@ dotenv.config();
 
 const app = express();
 const premiumUsersFile = path.join(__dirname, 'premium-users.json');
-const USD_PRICING = {
-  default: 5.00,
+
+// Base USD prices per country
+const PRICES_USD = {
   NG: 2.99,
-  GH: 3.50,
-  ZA: 3.50,
-  KE: 3.50
+  GH: 3.5,
+  US: 5,
+  GB: 5,
+  DEFAULT: 5
 };
+
+// Plan multipliers (monthly = 1, 3months = 3, yearly = 12)
+const PLAN_MULTIPLIERS = {
+  monthly: 1,
+  '3months': 3,
+  yearly: 12
+};
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 function getPremiumUsers() {
   try {
@@ -34,50 +46,46 @@ function addPremiumUser(email) {
   }
 }
 
-async function getExchangeRate(toCurrency) {
+async function detectCountry(ip) {
   try {
-    const res = await axios.get('https://open.er-api.com/v6/latest/USD');
-    return res.data.rates[toCurrency] || null;
-  } catch (err) {
-    console.error('❌ Failed to fetch exchange rate:', err.message);
-    return null;
+    const res = await axios.get(`https://ipapi.co/${ip}/json/`);
+    return res.data.country_code || 'DEFAULT';
+  } catch {
+    return 'DEFAULT';
   }
 }
 
-function getCountryFromIP(ip) {
-  return axios.get(`https://ipapi.co/${ip}/json/`)
-    .then(res => res.data.country || null)
-    .catch(() => null);
+async function getNairaRate() {
+  try {
+    const res = await axios.get('https://open.er-api.com/v6/latest/USD');
+    return res.data.rates['NGN'] || 1500;
+  } catch (err) {
+    console.warn('Fallback exchange rate used (NGN = 1500)');
+    return 1500;
+  }
 }
 
-const supportedCurrencies = ['USD', 'NGN', 'GHS', 'ZAR', 'KES'];
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
+// Webhook: verify payment
 app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res) => {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   const signature = req.headers['x-paystack-signature'];
   const hash = crypto.createHmac('sha512', secret).update(req.body).digest('hex');
 
-  if (hash !== signature) {
-    console.warn('⚠️ Invalid Paystack signature!');
-    return res.status(401).send('Invalid signature');
-  }
+  if (hash !== signature) return res.status(401).send('Invalid signature');
 
   const event = JSON.parse(req.body.toString());
   if (event.event === 'charge.success') {
     const email = event.data.customer.email;
-    const amount = event.data.amount / 100;
-    console.log(`✅ Payment verified for ${email}, amount: ${amount}`);
     addPremiumUser(email);
+    console.log(`✅ Payment verified: ${email}`);
   }
 
   res.sendStatus(200);
 });
 
+// Routes
 app.get('/', (req, res) => {
-  res.send('JephShield VPN Backend is running!');
+  res.send('JephShield backend running');
 });
 
 app.get('/subscribe', (req, res) => {
@@ -85,66 +93,58 @@ app.get('/subscribe', (req, res) => {
 });
 
 app.post('/api/subscribe', async (req, res) => {
-  const { email, currency, countryCode } = req.body;
-  if (!email) return res.status(400).json({ message: 'Missing email' });
+  const { email, plan } = req.body;
+  if (!email || !plan) return res.status(400).json({ message: 'Email and plan are required' });
 
-  const userIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  const country = countryCode || await getCountryFromIP(userIP) || 'US';
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress;
+  const country = await detectCountry(ip);
+  const baseUSD = PRICES_USD[country] || PRICES_USD.DEFAULT;
+  const multiplier = PLAN_MULTIPLIERS[plan] || 1;
+  const totalUSD = baseUSD * multiplier;
 
-  let finalCurrency = currency || {
-    NG: 'NGN',
-    GH: 'GHS',
-    ZA: 'ZAR',
-    KE: 'KES'
-  }[country] || 'USD';
-
-  if (!supportedCurrencies.includes(finalCurrency)) {
-    finalCurrency = 'USD';
-  }
-
-  const priceUSD = USD_PRICING[country] || USD_PRICING.default;
-  const exchangeRate = finalCurrency === 'USD' ? 1 : await getExchangeRate(finalCurrency) || 1;
-  const finalAmount = Math.round(priceUSD * exchangeRate * 100); // in kobo/cents
+  const exchangeRate = await getNairaRate();
+  const amountNGN = Math.round(totalUSD * exchangeRate * 100); // Paystack uses kobo
 
   try {
-    const response = await axios.post('https://api.paystack.co/transaction/initialize', {
-      email,
-      amount: finalAmount,
-      currency: finalCurrency,
-      callback_url: 'https://jephshield-auto.onrender.com/success'
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-        'Content-Type': 'application/json'
+    const response = await axios.post(
+      'https://api.paystack.co/transaction/initialize',
+      {
+        email,
+        amount: amountNGN,
+        currency: 'NGN',
+        callback_url: 'https://jephshield-auto.onrender.com/success'
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        }
       }
-    });
+    );
 
     const { authorization_url } = response.data.data;
-    console.log(`🧾 Initialized ${finalCurrency} payment for ${email}: ${authorization_url}`);
-    res.json({ authorization_url });
+    console.log(`🧾 Initialized NGN payment for ${email} (${plan}): ${authorization_url}`);
+    return res.json({ authorization_url });
 
   } catch (err) {
     console.error('❌ Payment init failed:', err.response?.data || err.message);
-    res.status(500).json({ message: 'Payment initialization failed' });
+    return res.status(500).json({ message: 'Payment initialization failed' });
   }
 });
 
 app.get('/success', (req, res) => {
-  res.send(`
-    <h1>Payment Successful 🎉</h1>
-    <p>Thank you for subscribing to JephShield VPN.</p>
-    <a href="/subscribe">Back to Subscription</a>
-  `);
+  res.send(`<h2>Payment Successful</h2><p>Your subscription is active.</p>`);
 });
 
 app.get('/api/is-premium', (req, res) => {
-  const { email } = req.query;
-  if (!email) return res.status(400).json({ message: 'Missing email' });
+  const email = req.query.email;
+  if (!email) return res.status(400).json({ message: 'Email is required' });
 
   const isPremium = getPremiumUsers().includes(email);
   res.json({ email, isPremium });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`JephShield backend is running on port ${PORT}`);
