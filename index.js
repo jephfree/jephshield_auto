@@ -132,8 +132,9 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
+// Serve success.html after successful payment
 app.get('/success', (req, res) => {
-  res.send(`<h2>Payment Successful</h2><p>Your subscription is active.</p>`);
+  res.sendFile(path.join(__dirname, 'public', 'success.html'));
 });
 
 app.get('/api/is-premium', (req, res) => {
