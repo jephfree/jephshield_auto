@@ -9,6 +9,7 @@ dotenv.config();
 
 const app = express();
 const premiumUsersFile = path.join(__dirname, 'premium-users.json');
+const trialsFile = path.join(__dirname, 'trial-devices.json'); // New file for trial devices
 
 // Base USD prices per country
 const PRICES_USD = {
@@ -29,6 +30,7 @@ const PLAN_MULTIPLIERS = {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Helper functions for premium users
 function getPremiumUsers() {
   try {
     const data = fs.readFileSync(premiumUsersFile, 'utf8');
@@ -46,6 +48,22 @@ function addPremiumUser(email) {
   }
 }
 
+// --- New helper functions for trial devices ---
+function getTrialDevices() {
+  try {
+    const data = fs.readFileSync(trialsFile, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
+function saveTrialDevices(devices) {
+  fs.writeFileSync(trialsFile, JSON.stringify(devices, null, 2));
+}
+// --- End new helpers ---
+
+// Detect country by IP
 async function detectCountry(ip) {
   try {
     const res = await axios.get(`https://ipapi.co/${ip}/json/`);
@@ -55,6 +73,7 @@ async function detectCountry(ip) {
   }
 }
 
+// Get NGN exchange rate
 async function getNairaRate() {
   try {
     const res = await axios.get('https://open.er-api.com/v6/latest/USD');
@@ -132,7 +151,38 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
-// Serve success.html after successful payment
+// --- NEW ROUTE to start 3-day trial ---
+app.post('/api/start-trial', (req, res) => {
+  const { deviceId, email } = req.body;
+  if (!deviceId || !email) {
+    return res.status(400).json({ message: 'Device ID and email are required' });
+  }
+
+  const trialDevices = getTrialDevices();
+
+  if (trialDevices[deviceId]) {
+    const trialStart = new Date(trialDevices[deviceId].start);
+    const now = new Date();
+    const diffDays = (now - trialStart) / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 3) {
+      return res.status(403).json({
+        message: 'Trial already active',
+        trialActive: true,
+        expiresInDays: (3 - diffDays).toFixed(1)
+      });
+    } else {
+      return res.status(403).json({ message: 'Trial expired', trialActive: false });
+    }
+  }
+
+  trialDevices[deviceId] = { email, start: new Date().toISOString() };
+  saveTrialDevices(trialDevices);
+
+  return res.json({ message: 'Trial started', trialActive: true, expiresInDays: 3 });
+});
+// --- End trial route ---
+
 app.get('/success', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'success.html'));
 });

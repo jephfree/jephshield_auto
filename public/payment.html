@@ -34,6 +34,11 @@
       color: #555;
       margin-bottom: 1rem;
     }
+    .trial-message {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: green;
+    }
   </style>
 </head>
 <body>
@@ -48,6 +53,8 @@
         <option value="yearly">Yearly</option>
       </select>
 
+      <input type="hidden" id="deviceId" />
+
       <div class="price" id="priceDisplay">Loading price...</div>
       <div class="note">
         You will be charged in Nigerian Naira (₦). Your bank or card provider will automatically convert the amount to your local currency.
@@ -55,6 +62,9 @@
 
       <button type="submit">Subscribe Now</button>
     </form>
+
+    <button onclick="startTrial()">Start Free Trial</button>
+    <div class="trial-message" id="trialMessage"></div>
   </div>
 
   <script>
@@ -93,20 +103,48 @@
       display.textContent = `Price: $${totalUSD.toFixed(2)} USD (charged in NGN)`;
     }
 
-    document.getElementById('plan').addEventListener('change', updatePrice);
+    function generateDeviceId() {
+      const components = [
+        navigator.userAgent,
+        navigator.language,
+        screen.width,
+        screen.height,
+        screen.colorDepth,
+        Intl.DateTimeFormat().resolvedOptions().timeZone
+      ];
+      const rawId = components.join('::');
+      return sha256(rawId);
+    }
 
+    function sha256(message) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(message);
+      return crypto.subtle.digest('SHA-256', data).then(hashBuffer => {
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      });
+    }
+
+    async function setDeviceId() {
+      const id = await generateDeviceId();
+      document.getElementById('deviceId').value = id;
+    }
+
+    document.getElementById('plan').addEventListener('change', updatePrice);
     detectCountry();
+    setDeviceId();
 
     const form = document.getElementById('paymentForm');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
       const plan = document.getElementById('plan').value;
+      const deviceId = document.getElementById('deviceId').value;
 
       const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, plan })
+        body: JSON.stringify({ email, plan, deviceId })
       });
 
       const data = await res.json();
@@ -116,8 +154,28 @@
         alert('Payment initiation failed. Please try again.');
       }
     });
+
+    async function startTrial() {
+      const deviceId = document.getElementById('deviceId').value;
+      const msgBox = document.getElementById('trialMessage');
+
+      const res = await fetch('/api/start-trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        msgBox.textContent = `✅ Trial started. Expires in: ${data.expiresIn}`;
+      } else {
+        msgBox.textContent = `❌ ${data.message}`;
+      }
+    }
   </script>
 </body>
 </html>
+
+
 
 
