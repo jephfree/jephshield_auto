@@ -12,7 +12,7 @@ const premiumUsersFile = path.join(__dirname, 'premium-users.json');
 
 // Base USD prices per country
 const PRICES_USD = {
-  NG: 0.066,
+  NG: 2.99,
   GH: 3.5,
   US: 5,
   GB: 5,
