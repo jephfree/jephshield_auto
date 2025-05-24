@@ -134,24 +134,27 @@
     detectCountry();
     setDeviceId();
 
-    const form = document.getElementById('paymentForm');
-    form.addEventListener('submit', async (e) => {
+    document.getElementById('paymentForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
       const plan = document.getElementById('plan').value;
       const deviceId = document.getElementById('deviceId').value;
 
-      const res = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, plan, deviceId })
-      });
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, plan, deviceId })
+        });
 
-      const data = await res.json();
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      } else {
-        alert('Payment initiation failed. Please try again.');
+        const data = await res.json();
+        if (res.ok && data.authorization_url) {
+          window.location.href = data.authorization_url;
+        } else {
+          alert(data.message || 'Payment initiation failed. Please try again.');
+        }
+      } catch (err) {
+        alert('Network error during subscription. Please check your connection.');
       }
     });
 
@@ -159,17 +162,24 @@
       const deviceId = document.getElementById('deviceId').value;
       const msgBox = document.getElementById('trialMessage');
 
-      const res = await fetch('/api/start-trial', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId })
-      });
+      try {
+        const res = await fetch('/api/start-trial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId })
+        });
 
-      const data = await res.json();
-      if (res.ok) {
-        msgBox.textContent = `✅ Trial started. Expires in: ${data.expiresIn}`;
-      } else {
-        msgBox.textContent = `❌ ${data.message}`;
+        const data = await res.json();
+        if (res.ok) {
+          msgBox.textContent = `✅ Trial started. Expires in: ${data.expiresIn}`;
+          msgBox.style.color = 'green';
+        } else {
+          msgBox.textContent = `❌ ${data.message}`;
+          msgBox.style.color = 'red';
+        }
+      } catch (err) {
+        msgBox.textContent = '❌ Network error. Please try again.';
+        msgBox.style.color = 'red';
       }
     }
   </script>
