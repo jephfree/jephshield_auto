@@ -9,9 +9,9 @@ dotenv.config();
 
 const app = express();
 const premiumUsersFile = path.join(__dirname, 'premium-users.json');
-const trialsFile = path.join(__dirname, 'trial-devices.json'); // New file for trial devices
+const trialsFile = path.join(__dirname, 'trial-devices.json');
 
-// Base USD prices per country
+// USD base prices by country
 const PRICES_USD = {
   NG: 2.99,
   GH: 3.5,
@@ -20,7 +20,7 @@ const PRICES_USD = {
   DEFAULT: 5
 };
 
-// Plan multipliers (monthly = 1, 3months = 3, yearly = 12)
+// Multipliers
 const PLAN_MULTIPLIERS = {
   monthly: 1,
   '3months': 3,
@@ -30,7 +30,7 @@ const PLAN_MULTIPLIERS = {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Helper functions for premium users
+// --- Premium User Helpers ---
 function getPremiumUsers() {
   try {
     const data = fs.readFileSync(premiumUsersFile, 'utf8');
@@ -48,7 +48,7 @@ function addPremiumUser(email) {
   }
 }
 
-// --- New helper functions for trial devices ---
+// --- Trial Helpers ---
 function getTrialDevices() {
   try {
     const data = fs.readFileSync(trialsFile, 'utf8');
@@ -61,9 +61,8 @@ function getTrialDevices() {
 function saveTrialDevices(devices) {
   fs.writeFileSync(trialsFile, JSON.stringify(devices, null, 2));
 }
-// --- End new helpers ---
 
-// Detect country by IP
+// Detect country from IP
 async function detectCountry(ip) {
   try {
     const res = await axios.get(`https://ipapi.co/${ip}/json/`);
@@ -73,18 +72,18 @@ async function detectCountry(ip) {
   }
 }
 
-// Get NGN exchange rate
+// USD to NGN exchange
 async function getNairaRate() {
   try {
     const res = await axios.get('https://open.er-api.com/v6/latest/USD');
     return res.data.rates['NGN'] || 1500;
-  } catch (err) {
+  } catch {
     console.warn('Fallback exchange rate used (NGN = 1500)');
     return 1500;
   }
 }
 
-// Webhook: verify payment
+// --- Verify Paystack payment ---
 app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res) => {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   const signature = req.headers['x-paystack-signature'];
@@ -102,7 +101,7 @@ app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res
   res.sendStatus(200);
 });
 
-// Routes
+// --- Routes ---
 app.get('/', (req, res) => {
   res.send('JephShield backend running');
 });
@@ -111,9 +110,12 @@ app.get('/subscribe', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
 
+// --- Subscribe and initialize payment ---
 app.post('/api/subscribe', async (req, res) => {
   const { email, plan } = req.body;
-  if (!email || !plan) return res.status(400).json({ message: 'Email and plan are required' });
+  if (!email || !plan) {
+    return res.status(400).json({ message: 'Email and plan are required' });
+  }
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress;
   const country = await detectCountry(ip);
@@ -146,12 +148,17 @@ app.post('/api/subscribe', async (req, res) => {
     return res.json({ authorization_url });
 
   } catch (err) {
-    console.error('❌ Payment init failed:', err.response?.data || err.message);
-    return res.status(500).json({ message: 'Payment initialization failed' });
+    const errorData = err.response?.data || err.message;
+    console.error('❌ Payment init failed:', errorData);
+
+    return res.status(500).json({
+      message: 'Payment initialization failed',
+      error: errorData
+    });
   }
 });
 
-// --- NEW ROUTE to start 3-day trial ---
+// --- Free Trial ---
 app.post('/api/start-trial', (req, res) => {
   const { deviceId, email } = req.body;
   if (!deviceId || !email) {
@@ -181,12 +188,13 @@ app.post('/api/start-trial', (req, res) => {
 
   return res.json({ message: 'Trial started', trialActive: true, expiresInDays: 3 });
 });
-// --- End trial route ---
 
+// --- Success Page ---
 app.get('/success', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'success.html'));
 });
 
+// --- Check Premium ---
 app.get('/api/is-premium', (req, res) => {
   const email = req.query.email;
   if (!email) return res.status(400).json({ message: 'Email is required' });
@@ -195,7 +203,7 @@ app.get('/api/is-premium', (req, res) => {
   res.json({ email, isPremium });
 });
 
-// Start server
+// --- Start Server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`JephShield backend is running on port ${PORT}`);
