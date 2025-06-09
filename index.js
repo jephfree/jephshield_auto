@@ -10,6 +10,7 @@ dotenv.config();
 const app = express();
 const premiumUsersFile = path.join(__dirname, 'premium-users.json');
 const trialsFile = path.join(__dirname, 'trial-devices.json');
+const premiumDeviceMapFile = path.join(__dirname, 'premium-device-map.json');
 
 // USD base prices by country
 const PRICES_USD = {
@@ -20,7 +21,7 @@ const PRICES_USD = {
   DEFAULT: 5
 };
 
-// Multipliers
+// Plan multipliers
 const PLAN_MULTIPLIERS = {
   monthly: 1,
   '3months': 3,
@@ -46,6 +47,19 @@ function addPremiumUser(email) {
     users.push(email);
     fs.writeFileSync(premiumUsersFile, JSON.stringify(users, null, 2));
   }
+}
+
+function getPremiumDeviceMap() {
+  try {
+    const data = fs.readFileSync(premiumDeviceMapFile, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
+function savePremiumDeviceMap(map) {
+  fs.writeFileSync(premiumDeviceMapFile, JSON.stringify(map, null, 2));
 }
 
 // --- Trial Helpers ---
@@ -83,7 +97,7 @@ async function getNairaRate() {
   }
 }
 
-// --- Verify Paystack payment ---
+// --- Webhook Verification ---
 app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res) => {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   const signature = req.headers['x-paystack-signature'];
@@ -94,14 +108,24 @@ app.post('/verify-payment', express.raw({ type: 'application/json' }), (req, res
   const event = JSON.parse(req.body.toString());
   if (event.event === 'charge.success') {
     const email = event.data.customer.email;
-    addPremiumUser(email);
-    console.log(`✅ Payment verified: ${email}`);
+    const metadata = event.data.metadata || {};
+    const deviceId = metadata.deviceId;
+
+    if (email && deviceId) {
+      addPremiumUser(email);
+      const deviceMap = getPremiumDeviceMap();
+      deviceMap[email] = deviceId;
+      savePremiumDeviceMap(deviceMap);
+      console.log(`✅ Payment verified: ${email} (Device: ${deviceId})`);
+    } else {
+      console.warn('⚠️ Missing email or deviceId in webhook metadata');
+    }
   }
 
   res.sendStatus(200);
 });
 
-// --- Routes ---
+// --- Homepage ---
 app.get('/', (req, res) => {
   res.send('JephShield backend running');
 });
@@ -110,11 +134,15 @@ app.get('/subscribe', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
 
-// --- Subscribe and initialize payment ---
+app.get('/success', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'success.html'));
+});
+
+// --- Payment Initialization ---
 app.post('/api/subscribe', async (req, res) => {
-  const { email, plan } = req.body;
-  if (!email || !plan) {
-    return res.status(400).json({ message: 'Email and plan are required' });
+  const { email, plan, deviceId } = req.body;
+  if (!email || !plan || !deviceId) {
+    return res.status(400).json({ message: 'Email, plan, and device ID are required' });
   }
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress;
@@ -133,7 +161,10 @@ app.post('/api/subscribe', async (req, res) => {
         email,
         amount: amountNGN,
         currency: 'NGN',
-        callback_url: 'https://jephshield-auto.onrender.com/success'
+        callback_url: 'https://jephshield-auto.onrender.com/success',
+        metadata: {
+          deviceId
+        }
       },
       {
         headers: {
@@ -144,7 +175,7 @@ app.post('/api/subscribe', async (req, res) => {
     );
 
     const { authorization_url } = response.data.data;
-    console.log(`🧾 Initialized NGN payment for ${email} (${plan}): ${authorization_url}`);
+    console.log(`🧾 Initialized NGN payment for ${email} (${plan})`);
     return res.json({ authorization_url });
 
   } catch (err) {
@@ -166,6 +197,11 @@ app.post('/api/start-trial', (req, res) => {
   }
 
   const trialDevices = getTrialDevices();
+  const premiumMap = getPremiumDeviceMap();
+
+  if (premiumMap[email] && premiumMap[email] !== deviceId) {
+    return res.status(403).json({ message: 'Premium account already used on another device' });
+  }
 
   if (trialDevices[deviceId]) {
     const trialStart = new Date(trialDevices[deviceId].start);
@@ -176,7 +212,7 @@ app.post('/api/start-trial', (req, res) => {
       return res.status(403).json({
         message: 'Trial already active',
         trialActive: true,
-        expiresInDays: (3 - diffDays).toFixed(1)
+        expiresIn: `${(3 - diffDays).toFixed(1)} days`
       });
     } else {
       return res.status(403).json({ message: 'Trial expired', trialActive: false });
@@ -186,20 +222,18 @@ app.post('/api/start-trial', (req, res) => {
   trialDevices[deviceId] = { email, start: new Date().toISOString() };
   saveTrialDevices(trialDevices);
 
-  return res.json({ message: 'Trial started', trialActive: true, expiresInDays: 3 });
+  return res.json({ message: 'Trial started', trialActive: true, expiresIn: '3 days' });
 });
 
-// --- Success Page ---
-app.get('/success', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'success.html'));
-});
-
-// --- Check Premium ---
+// --- Premium Check ---
 app.get('/api/is-premium', (req, res) => {
-  const email = req.query.email;
-  if (!email) return res.status(400).json({ message: 'Email is required' });
+  const { email, deviceId } = req.query;
+  if (!email || !deviceId) return res.status(400).json({ message: 'Email and device ID required' });
 
-  const isPremium = getPremiumUsers().includes(email);
+  const users = getPremiumUsers();
+  const premiumMap = getPremiumDeviceMap();
+
+  const isPremium = users.includes(email) && premiumMap[email] === deviceId;
   res.json({ email, isPremium });
 });
 
@@ -207,4 +241,38 @@ app.get('/api/is-premium', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`JephShield backend is running on port ${PORT}`);
+});
+
+// ...your other route handlers like /pay, /webhook, etc.
+
+// Sample VPN server list
+const vpnServers = [
+  {
+    name: "US-East",
+    location: "New York",
+    ip: "123.45.67.1",
+    expires: "2025-06-16"
+  },
+  {
+    name: "Europe",
+    location: "Frankfurt",
+    ip: "85.214.132.1",
+    expires: "2025-06-16"
+  },
+  {
+    name: "Asia",
+    location: "Singapore",
+    ip: "138.199.50.2",
+    expires: "2025-06-16"
+  }
+];
+
+// Route to serve VPN server list
+app.get("/servers", (req, res) => {
+  res.json(vpnServers);
+});
+
+// Ensure this comes last
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server running...");
 });
