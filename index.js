@@ -237,6 +237,12 @@ app.get('/api/is-premium', (req, res) => {
   res.json({ email, isPremium });
 });
 
+// Route to return all VPN trial servers
+app.get('/api/get-trial-server', (req, res) => {
+  res.json(vpnServers);
+});
+
+
 // --- Start Server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -245,27 +251,33 @@ app.listen(PORT, () => {
 
 // ...your other route handlers like /pay, /webhook, etc.
 
-// Sample VPN server list
 const vpnServers = [
   {
-    name: "US-East",
-    location: "New York",
-    ip: "123.45.67.1",
-    expires: "2025-06-16"
+    name: "Trial Server 1",
+    location: "France",
+    ip: "51.159.125.25",
+    username: "fastssh.com-jeph3",
+    password: "134679",
+    expires: "2025-06-20"
   },
   {
-    name: "Europe",
-    location: "Frankfurt",
-    ip: "85.214.132.1",
-    expires: "2025-06-16"
+    name: "Trial Server 2",
+    location: "France",
+    ip: "51.159.125.25",
+    username: "fastssh.com-jeph4",
+    password: "134679",
+    expires: "2025-06-20"
   },
   {
-    name: "Asia",
-    location: "Singapore",
-    ip: "138.199.50.2",
-    expires: "2025-06-16"
+    name: "Trial Server 3",
+    location: "France",
+    ip: "51.159.125.25",
+    username: "fastssh.com-jeph6",
+    password: "134679",
+    expires: "2025-06-20"
   }
 ];
+
 
 // Route to serve VPN server list
 app.get("/servers", (req, res) => {
