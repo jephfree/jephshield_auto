@@ -272,7 +272,54 @@ app.get("/servers", (req, res) => {
   res.json(vpnServers);
 });
 
-// Ensure this comes last
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Server running...");
+// --- Server Usage Tracker for Free Trials ---
+const serverUsageFile = path.join(__dirname, 'server_usage.json');
+const MAX_USERS_PER_SERVER = 25;
+
+function getServerUsage() {
+  try {
+    const data = fs.readFileSync(serverUsageFile, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+function saveServerUsage(data) {
+  fs.writeFileSync(serverUsageFile, JSON.stringify(data, null, 2));
+}
+
+const { parseISO, addDays, formatISO } = require('date-fns'); // put this near your other imports
+
+app.post('/api/get-trial-server', (req, res) => {
+  const usageData = getServerUsage();
+
+  const servers = usageData['game-optimized-trial'] || [];
+
+  const available = servers.find(server => server.current_users < server.capacity);
+
+  if (!available) {
+    return res.status(503).json({ message: 'All trial servers are full. Please try again later.' });
+  }
+
+  // Increment current user count
+  available.current_users += 1;
+  saveServerUsage(usageData);
+
+  // Calculate expiry: created_at + 7 days
+  const expiresAt = formatISO(addDays(parseISO(available.created_at), 7), { representation: 'date' });
+
+  const response = {
+    server: {
+      ip: available.ip,
+      username: available.username,
+      password: available.password,
+      location: available.location,
+      tags: available.tags,
+      expires: expiresAt
+    }
+  };
+
+  res.json(response);
 });
+

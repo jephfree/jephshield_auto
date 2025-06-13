@@ -1,0 +1,46 @@
+{
+  "game-optimized-trial": [
+    {
+      "ip": "51.159.125.25",
+      "location": "France",
+      "capacity": 25,
+      "current_users": 0,
+      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
+      "created_at": "2025-06-13T00:00:00Z",
+      "username": "fastssh.com-jeph2",
+      "password": "YOUR_PASSWORD_HERE"
+    },
+    {
+      "ip": "51.159.125.25",
+      "location": "France",
+      "capacity": 25,
+      "current_users": 0,
+      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
+      "created_at": "2025-06-13T00:00:00Z",
+      "username": "fastssh.com-jeph3",
+      "password": "134679"
+    },
+    {
+      "ip": "51.159.125.25",
+      "location": "France",
+      "capacity": 25,
+      "current_users": 0,
+      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
+      "created_at": "2025-06-13T00:00:00Z",
+      "username": "fastssh.com-jeph4",
+      "password": "134679"
+    },
+    {
+      "ip": "51.159.125.25",
+      "location": "France",
+      "capacity": 25,
+      "current_users": 0,
+      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
+      "created_at": "2025-06-13T00:00:00Z",
+      "username": "fastssh.com-jeph6",
+      "password": "134679"
+    }
+  ]
+}
+
+

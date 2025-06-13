@@ -1,11 +1,50 @@
 [
   {
+    "id": 1,
+    "country": "singapore",
+    "location": "Singapore VLESS-WS TLS 443 #1",
+    "ip": "asia1.fufo.org",
+    "port": "443",
+    "protocol": "VLESS-WS",
+    "uuid": "99943d50-46b0-11f0-b932-205c6d5f5d78",
+    "path": "/vlws",
+    "security": "tls",
+    "maxUsers": 25
+  },
+  {
+    "id": 2,
+    "country": "singapore",
+    "location": "Singapore VLESS-WS TLS 443 #2",
+    "ip": "asia1.fufo.org",
+    "port": "443",
+    "protocol": "VLESS-WS",
+    "uuid": "caa43070-46b1-11f0-b936-205c6d5f5d78",
+    "path": "/vlws",
+    "security": "tls",
+    "maxUsers": 25
+  },
+  {
+    "id": 3,
+    "country": "singapore",
+    "location": "Singapore VLESS-WS TLS 443 #3",
+    "ip": "asia1.fufo.org",
+    "port": "443",
+    "protocol": "VLESS-WS",
+    "uuid": "426083a0-46b2-11f0-b432-205c6d5f5d78",
+    "path": "/vlws",
+    "security": "tls",
+    "maxUsers": 25
+  },
+  {
     "id": 4,
     "country": "singapore",
-    "location": "Singapore Public 3",
-    "ip": "sg-public3.sshws.net",
-    "port": "22",
-    "username": "fastssh.com-jeph45",
-    "password": "134679"
+    "location": "Singapore VLESS-WS TLS 443 #4",
+    "ip": "asia1.fufo.org",
+    "port": "443",
+    "protocol": "VLESS-WS",
+    "uuid": "80187c80-46b2-11f0-b631-205c6d5f5d78",
+    "path": "/vlws",
+    "security": "tls",
+    "maxUsers": 25
   }
 ]
