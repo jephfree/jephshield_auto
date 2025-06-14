@@ -4,6 +4,7 @@ const axios = require('axios');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 const fs = require('fs');
+const { parseISO, addDays, formatISO } = require('date-fns');
 
 dotenv.config();
 
@@ -11,6 +12,10 @@ const app = express();
 const premiumUsersFile = path.join(__dirname, 'premium-users.json');
 const trialsFile = path.join(__dirname, 'trial-devices.json');
 const premiumDeviceMapFile = path.join(__dirname, 'premium-device-map.json');
+const serverUsageFile = path.join(__dirname, 'server_usage.json');
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // USD base prices by country
 const PRICES_USD = {
@@ -28,8 +33,7 @@ const PLAN_MULTIPLIERS = {
   yearly: 12
 };
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+const MAX_USERS_PER_SERVER = 25;
 
 // --- Premium User Helpers ---
 function getPremiumUsers() {
@@ -74,6 +78,19 @@ function getTrialDevices() {
 
 function saveTrialDevices(devices) {
   fs.writeFileSync(trialsFile, JSON.stringify(devices, null, 2));
+}
+
+function getServerUsage() {
+  try {
+    const data = fs.readFileSync(serverUsageFile, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return { 'game-optimized-trial': [] };
+  }
+}
+
+function saveServerUsage(data) {
+  fs.writeFileSync(serverUsageFile, JSON.stringify(data, null, 2));
 }
 
 // Detect country from IP
@@ -237,75 +254,9 @@ app.get('/api/is-premium', (req, res) => {
   res.json({ email, isPremium });
 });
 
-// Route to return all VPN trial servers
-app.get('/api/get-trial-server', (req, res) => {
-  res.json(vpnServers);
-});
-
-
-// --- Start Server ---
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`JephShield backend is running on port ${PORT}`);
-});
-
-// ...your other route handlers like /pay, /webhook, etc.
-
-const vpnServers = [
-  {
-    name: "Trial Server 1",
-    location: "France",
-    ip: "51.159.125.25",
-    username: "fastssh.com-jeph3",
-    password: "134679",
-    expires: "2025-06-20"
-  },
-  {
-    name: "Trial Server 2",
-    location: "France",
-    ip: "51.159.125.25",
-    username: "fastssh.com-jeph4",
-    password: "134679",
-    expires: "2025-06-20"
-  },
-  {
-    name: "Trial Server 3",
-    location: "France",
-    ip: "51.159.125.25",
-    username: "fastssh.com-jeph6",
-    password: "134679",
-    expires: "2025-06-20"
-  }
-];
-
-
-// Route to serve VPN server list
-app.get("/servers", (req, res) => {
-  res.json(vpnServers);
-});
-
-// --- Server Usage Tracker for Free Trials ---
-const serverUsageFile = path.join(__dirname, 'server_usage.json');
-const MAX_USERS_PER_SERVER = 25;
-
-function getServerUsage() {
-  try {
-    const data = fs.readFileSync(serverUsageFile, 'utf8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-function saveServerUsage(data) {
-  fs.writeFileSync(serverUsageFile, JSON.stringify(data, null, 2));
-}
-
-const { parseISO, addDays, formatISO } = require('date-fns'); // put this near your other imports
-
+// --- Trial Server Assignment with Usage Tracking ---
 app.post('/api/get-trial-server', (req, res) => {
   const usageData = getServerUsage();
-
   const servers = usageData['game-optimized-trial'] || [];
 
   const available = servers.find(server => server.current_users < server.capacity);
@@ -335,3 +286,49 @@ app.post('/api/get-trial-server', (req, res) => {
   res.json(response);
 });
 
+// --- Server List for UI or Other Use ---
+const vpnServers = [
+  {
+    name: "Trial Server 1",
+    location: "France",
+    ip: "51.159.125.25",
+    username: "fastssh.com-jeph3",
+    password: "134679",
+    expires: "2025-06-20"
+  },
+  {
+    name: "Trial Server 2",
+    location: "France",
+    ip: "51.159.125.25",
+    username: "fastssh.com-jeph4",
+    password: "134679",
+    expires: "2025-06-20"
+  },
+  {
+    name: "Trial Server 3",
+    location: "France",
+    ip: "51.159.125.25",
+    username: "fastssh.com-jeph6",
+    password: "134679",
+    expires: "2025-06-20"
+  },
+  {
+    name: "Trial Server 4",
+    location: "South Africa",
+    ip: "sa2.vpnjantit.com:1024",
+    username: "jephfree-vpnjantit.com",
+    password: "WireGuard (use private key)",
+    expires: "2025-06-21"
+  }
+];
+
+// Route to serve VPN server list (if needed)
+app.get("/servers", (req, res) => {
+  res.json(vpnServers);
+});
+
+// --- Start Server ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`JephShield backend is running on port ${PORT}`);
+});
