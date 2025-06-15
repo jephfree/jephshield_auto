@@ -2,53 +2,43 @@
   "game-optimized-trial": [
     {
       "ip": "51.159.125.25",
-      "location": "France",
-      "capacity": 25,
-      "current_users": 0,
-      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
-      "created_at": "2025-06-13T00:00:00Z",
-      "username": "fastssh.com-jeph2",
-      "password": "YOUR_PASSWORD_HERE"
-    },
-    {
-      "ip": "51.159.125.25",
-      "location": "France",
-      "capacity": 25,
-      "current_users": 0,
-      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
-      "created_at": "2025-06-13T00:00:00Z",
       "username": "fastssh.com-jeph3",
-      "password": "134679"
+      "password": "134679",
+      "location": "France",
+      "tags": ["trial"],
+      "capacity": 25,
+      "current_users": 0,
+      "created_at": "2025-06-13T00:00:00Z"
     },
     {
       "ip": "51.159.125.25",
-      "location": "France",
-      "capacity": 25,
-      "current_users": 0,
-      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
-      "created_at": "2025-06-13T00:00:00Z",
       "username": "fastssh.com-jeph4",
-      "password": "134679"
+      "password": "134679",
+      "location": "France",
+      "tags": ["trial"],
+      "capacity": 25,
+      "current_users": 0,
+      "created_at": "2025-06-13T00:00:00Z"
     },
     {
       "ip": "51.159.125.25",
+      "username": "fastssh.com-jeph6",
+      "password": "134679",
       "location": "France",
+      "tags": ["trial"],
       "capacity": 25,
       "current_users": 0,
-      "tags": ["efootball-eu", "matchmaking", "codm-eu"],
-      "created_at": "2025-06-13T00:00:00Z",
-      "username": "fastssh.com-jeph6",
-      "password": "134679"
+      "created_at": "2025-06-13T00:00:00Z"
     },
     {
-      "ip": "sa2.vpnjantit.com",
+      "ip": "sa2.vpnjantit.com:1024",
+      "username": "jephfree-vpnjantit.com",
+      "password": "WireGuard (use private key)",
       "location": "South Africa",
+      "tags": ["trial"],
       "capacity": 25,
       "current_users": 0,
-      "tags": ["efootball-africa", "codm-africa", "low-latency"],
-      "created_at": "2025-06-13T00:00:00Z",
-      "username": "jephfree-vpnjantit.com",
-      "password": "N/A (WireGuard key)"
+      "created_at": "2025-06-14T00:00:00Z"
     }
   ]
 }
