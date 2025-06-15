@@ -4,7 +4,7 @@ const axios = require('axios');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 const fs = require('fs');
-const { parseISO, addDays, formatISO } = require('date-fns');
+const { parseISO, addDays, formatISO, isBefore } = require('date-fns');
 
 dotenv.config();
 
@@ -254,32 +254,64 @@ app.get('/api/is-premium', (req, res) => {
   res.json({ email, isPremium });
 });
 
-// --- Trial Server Assignment with Usage Tracking ---
+// --- Helper: regenerate trial server ---
+function regenerateTrialServer(server) {
+  // TODO: Replace this with your real server regeneration logic.
+  // For example, fetch new credentials from fastssh.com or your provider's API.
+  // Here, as a placeholder, we just update expiry + reset current_users = 0
+  const newExpiry = formatISO(addDays(new Date(), 7), { representation: 'date' });
+
+  return {
+    ...server,
+    current_users: 0,
+    created_at: new Date().toISOString(),
+    expires: newExpiry,
+    // If you have new IP, username, password, update here
+    // ip: 'new ip',
+    // username: 'new username',
+    // password: 'new password',
+  };
+}
+
+// --- Trial Server Assignment with Auto-Regeneration ---
 app.post('/api/get-trial-server', (req, res) => {
   const usageData = getServerUsage();
-  const servers = usageData['game-optimized-trial'] || [];
+  let servers = usageData['game-optimized-trial'] || [];
 
-  const available = servers.find(server => server.current_users < server.capacity);
+  const today = new Date();
+
+  // Check and auto-regenerate expired servers
+  servers = servers.map(server => {
+    if (server.expires && isBefore(parseISO(server.expires), today)) {
+      console.log(`🔄 Regenerating expired server: ${server.name}`);
+      return regenerateTrialServer(server);
+    }
+    return server;
+  });
+
+  // Save updated servers after regeneration
+  usageData['game-optimized-trial'] = servers;
+  saveServerUsage(usageData);
+
+  // Find first available server with capacity
+  const available = servers.find(server => (server.current_users || 0) < (server.capacity || MAX_USERS_PER_SERVER));
 
   if (!available) {
     return res.status(503).json({ message: 'All trial servers are full. Please try again later.' });
   }
 
   // Increment current user count
-  available.current_users += 1;
+  available.current_users = (available.current_users || 0) + 1;
   saveServerUsage(usageData);
-
-  // Calculate expiry: created_at + 7 days
-  const expiresAt = formatISO(addDays(parseISO(available.created_at), 7), { representation: 'date' });
 
   const response = {
     server: {
+      name: available.name,
       ip: available.ip,
       username: available.username,
       password: available.password,
       location: available.location,
-      tags: available.tags,
-      expires: expiresAt
+      expires: available.expires,
     }
   };
 
