@@ -49,6 +49,16 @@
       "capacity": 25,
       "current_users": 0,
       "created_at": "2025-06-15T00:00:00Z"
+    },
+    {
+      "ip": "sg2.vpnjantit.com:1024",
+      "username": "WireGuard",
+      "password": "Use private key",
+      "location": "Singapore",
+      "tags": ["trial", "wireguard"],
+      "capacity": 25,
+      "current_users": 0,
+      "created_at": "2025-06-15T00:00:00Z"
     }
   ]
 }
